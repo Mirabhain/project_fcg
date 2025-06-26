@@ -1,0 +1,1203 @@
+//FCG Mini Project
+// Instructions: 
+// std::cout is meant for debugging 
+
+//Group Members:
+//1. Raden Salma Humaira Binti Muhammad Mun'im      A23CS0264
+//2. Siti Nurul Amirah Binti Sheikh Sulaiman        A23CS0182
+//3. Tan Sze Qing                                   A23CS5048
+//4. Aifa Insyirah Binti Hairul Azmi                A23CS8005
+
+//
+#define _CRT_SECURE_NO_WARNINGS
+#include <GL/glut.h>
+#include <cstdlib>
+#include <cmath>
+#include <iostream>
+#include <windows.h>
+#include <fstream>
+#include <ctime>
+
+#define M_PI 3.142f
+#define NUM_CONSTELLATION_STARS 13
+
+// Variables FOR VOLTORB
+float angleY = 0.0f;
+float angleX = 0.0f;
+float moveX = 1.8f, moveZ = 0.0f;
+
+// implementing bounce height for project later
+float bounceHeight = 3.0f;
+float bounceTime = 0.0f;
+
+//for ear appendange 
+float earRotX[4] = { -70.0f, -70.0f, -70.0f, -70.0f };  // sudut rotate depan–belakang
+float earRotY[4] = { 25.0f,   0.0f,   0.0f,   -25.0f };  // sudut rotate kiri–kanan
+
+//camera 
+float cameraX = 0.0f, cameraY = 5.0f, cameraZ = 15.0f;//camera position
+float lx = 0.0f, lz = -1.0f;//look direction vector
+float cameraAngle = 0.0f;
+float deltaMove = 0.0f;//movement variables , delta move use for forward and backward movement
+float deltaAngle = 0.0f;//Rotation speed for left/right turns
+
+//arm movement animated 
+float rightShoulderRot = 0.0f;  // Rotates the upper arm from shoulder
+float rightElbowRot = 0.0f;     // Bends the forearm
+
+float leftShoulderRot = 0.0f;
+float leftElbowRot = 0.0f;
+
+// Stars constellation
+struct Star {
+    float x, y;
+    float brightness;
+    float speed;
+    float size;
+};
+
+Star constellation[NUM_CONSTELLATION_STARS];
+float starTime = 0.0f;
+
+// for eyes
+GLfloat shearXMatrix[16] = {
+    1.0f, 0.0f, -1.4f, 0.0f,
+    0.0f, 1.0f, 0.0f, 0.0f,
+    0.0f, 0.0f, 1.0f, 0.0f,
+    0.0f, 0.0f, 0.0f, 1.0f
+};
+
+
+
+
+int displayOpt = 0; //global variable to track display mode
+
+// ----------- CONSTELLATION ---------------
+// 
+void initConstellation() {
+    constellation[0] = { 0.5f, 0.8f, 0.8f, 1.0f, 3.0f };
+    constellation[1] = { 0.3f, 0.7f, 0.7f, 1.2f, 3.0f };
+    constellation[2] = { 0.7f, 0.7f, 0.7f, 1.2f, 3.0f };
+    constellation[3] = { 0.2f, 0.9f, 0.6f, 1.5f, 4.0f };
+    constellation[4] = { 0.1f, 1.0f, 0.5f, 1.7f, 4.0f };
+    constellation[5] = { 0.8f, 0.9f, 0.6f, 1.5f, 4.0f };
+    constellation[6] = { 0.9f, 1.0f, 0.5f, 1.7f, 4.0f };
+    constellation[7] = { 0.5f, 0.6f, 0.9f, 0.9f, 3.0f };
+    constellation[8] = { 0.5f, 0.4f, 0.8f, 0.8f, 3.0f };
+    constellation[9] = { 0.3f, 0.3f, 0.7f, 1.0f, 3.0f };
+    constellation[10] = { 0.7f, 0.3f, 0.7f, 1.0f, 3.0f };
+    constellation[11] = { 0.6f, 0.5f, 0.6f, 1.3f, 4.0f };
+    constellation[12] = { 0.8f, 0.7f, 0.4f, 1.5f, 4.0f };
+}
+
+void setupMaterial(float r, float g, float b, float shininess) {
+    GLfloat mat_amb_diff[] = { r, g, b, 1.0f };
+    GLfloat mat_specular[] = { 0.3f, 0.3f, 0.3f, 1.0f };
+    GLfloat mat_shininess[] = { shininess };
+
+    glMaterialfv(GL_FRONT, GL_AMBIENT_AND_DIFFUSE, mat_amb_diff);
+    glMaterialfv(GL_FRONT, GL_SPECULAR, mat_specular);
+    glMaterialfv(GL_FRONT, GL_SHININESS, mat_shininess);
+}
+void setMaterialColor(float r, float g, float b) {
+    setupMaterial(r, g, b, 30.0f); // Default shininess
+}
+
+void setMetallicMaterial(float r, float g, float b) {
+    setupMaterial(r, g, b, 80.0f); // High shininess for metals
+    GLfloat mat_specular[] = { 0.7f, 0.7f, 0.7f, 1.0f };
+    glMaterialfv(GL_FRONT, GL_SPECULAR, mat_specular);
+}
+
+void setMatteMaterial(float r, float g, float b) {
+    setupMaterial(r, g, b, 10.0f); // Low shininess for matte
+    GLfloat mat_specular[] = { 0.1f, 0.1f, 0.1f, 1.0f };
+    glMaterialfv(GL_FRONT, GL_SPECULAR, mat_specular);
+}
+
+void drawConstellation(float time) {
+    glPushMatrix();
+
+    glDisable(GL_LIGHTING);
+    glDisable(GL_DEPTH_TEST);
+    glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
+    glEnable(GL_POINT_SMOOTH);
+
+    glBegin(GL_POINTS);
+    for (int i = 0; i < NUM_CONSTELLATION_STARS; i++) {
+        Star s = constellation[i];
+        float brightness = s.brightness * (0.7f + 0.3f * sin(time * s.speed));
+
+        float x = s.x * 40.0f - 20.0f;
+        float y = s.y * 15.0f + 5.0f;
+
+        glColor3f(brightness, brightness, brightness);
+        glPointSize(s.size);
+        glVertex3f(x, y, -5.0f); // Slightly forward
+    }
+    glEnd();
+
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_LIGHTING);
+    glPopMatrix();
+}
+
+
+//----------------------DRAW GROUND-------------------
+void ground() {
+    glColor3f(0.0f, 0.8f, 0.0f); //Bright green
+    glBegin(GL_QUADS);
+    glVertex3f(-20.0f, 0.0f, -20.0f);
+    glVertex3f(20.0f, 0.0f, -20.0f);
+    glVertex3f(20.0f, 0.0f, 20.0f);
+    glVertex3f(-20.0f, 0.0f, 20.0f);
+    glEnd();
+    std::cout << "Ground drawn\n" << std::flush;
+}
+
+//------------------------DRAW GRASS---------------
+void grass() {
+    glColor3f(0.0f, 1.0f, 0.0f);
+    glLineWidth(2.0f);
+
+    for (float x = -15.0f; x <= 15.0f; x += 0.5f) {
+        for (float z = -15.0f; z <= 15.0f; z += 1.0f) {
+            glBegin(GL_LINES);
+            glVertex3f(x, 0.0f, z);
+            glVertex3f(x, 0.4f + (rand() % 100) / 250.0f, z);
+            glEnd();
+        }
+    }
+    std::cout << "Grass drawn\n" << std::flush;
+
+}
+//---------------------DRAW FENCE----------------------
+void fence() {
+    glColor3f(0.6f, 0.3f, 0.1f); //Brown
+    glLineWidth(3.5f);
+
+    for (float x = -20.0f; x <= 20.0f; x += 0.5f) {
+        glPushMatrix();
+        glTranslatef(x, 1.0f, -18.0f);
+        glScalef(0.1f, 2.0f, 0.1f);
+        glutSolidCube(1.0f);
+        glPopMatrix();
+    }
+    std::cout << "Fence drawn\n" << std::flush;
+
+}
+//--------------DRAW SKY-------------------
+void sky() {
+    glDisable(GL_DEPTH_TEST);
+
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    gluOrtho2D(0, 1, 0, 1);
+
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+
+    glBegin(GL_QUADS);
+    glColor3f(0.4f, 0.6f, 1.0f); //Dark blue (top)
+    glVertex2f(0.0f, 1.0f);
+    glVertex2f(1.0f, 1.0f);
+
+    glColor3f(0.6f, 0.8f, 1.0f); //Light blue (bottom)
+    glVertex2f(1.0f, 0.0f);
+    glVertex2f(0.0f, 0.0f);
+    glEnd();
+
+    glPopMatrix();
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+
+    glEnable(GL_DEPTH_TEST);
+    std::cout << "Sky drawn\n" << std::flush;
+
+}
+
+//-----------DRAW SECOND CHARACTER(VOLTORB)-------------
+//-----------DRAW BODY-------------
+void drawVoltorbBody() {
+    GLUquadric* quad = gluNewQuadric();
+    gluQuadricNormals(quad, GLU_SMOOTH); // Important for shading
+
+    // TOP HALF (RED)
+    glEnable(GL_CLIP_PLANE0);
+    double eqnTop[4] = { 0.0, 1.0, 0.0, 0.0 };
+    glClipPlane(GL_CLIP_PLANE0, eqnTop);
+
+    setMaterialColor(1.0f, 0.0f, 0.0f); // Keeps original color
+    glColor3f(1.0f, 0.0f, 0.0f);
+    glPushMatrix();
+    gluSphere(quad, 1.0, 60, 60);
+    glPopMatrix();
+    glDisable(GL_CLIP_PLANE0);
+
+    // BOTTOM HALF (WHITE)
+    glEnable(GL_CLIP_PLANE1);
+    double eqnBottom[4] = { 0.0, -1.0, 0.0, 0.0 };
+    glClipPlane(GL_CLIP_PLANE1, eqnBottom);
+
+    setMaterialColor(1.0f, 1.0f, 1.0f); // Keeps original color
+    glColor3f(1.0f, 1.0f, 1.0f);
+    glPushMatrix();
+    gluSphere(quad, 1.0, 60, 60);
+    glPopMatrix();
+    glDisable(GL_CLIP_PLANE1);
+
+    gluDeleteQuadric(quad);
+}
+
+//----------------VOLTORB EYE-----------------------------
+void drawEye(float xOffset) {
+    // Eye white
+    //setMaterialColor(1.0f, 1.0f, 1.0f);
+    glColor3f(1.0f, 1.0f, 1.0f);
+    glPushMatrix();
+    glTranslatef(xOffset, 0.3f, 0.95f);
+    glScalef(1.0f, 0.8f, 1.0f);
+    glutSolidSphere(0.15f, 20, 20);
+    glPopMatrix();
+
+    // Pupil
+    //setMaterialColor(0.0f, 0.0f, 0.0f);
+    glColor3f(0.0f, 0.0f, 0.0f);
+    glPushMatrix();
+    glTranslatef(xOffset, 0.3f, 1.08f);
+    glutSolidSphere(0.05f, 20, 20);
+    glPopMatrix();
+}
+
+//---------------------DRAW VOLTORB EYEBROW---------------------
+void drawAngryEyebrow(float xOffset, bool left) {
+    setMaterialColor(0.2f, 0.0f, 0.0f);
+    glPushMatrix();
+    glTranslatef(xOffset, 0.55f, 0.85f);
+    glRotatef(left ? -30.0f : 30.0f, 0.0f, 0.0f, 1.0f);
+    glScalef(0.4f, 0.05f, 0.05f);
+    glutSolidCube(1.0);
+    glPopMatrix();
+}
+
+void drawVoltorb() {
+    glPushMatrix(); // Root node
+
+    // Move, bounce, and rotate
+    glTranslatef(moveX, bounceHeight, moveZ);
+    glRotatef(angleY, 0.0f, 1.0f, 0.0f);
+
+    // Body
+    drawVoltorbBody();
+
+    // Eyes
+    glPushMatrix();
+    drawEye(-0.3f); // Left
+    drawEye(0.3f);  // Right
+    glPopMatrix();
+
+    // Angry Eyebrows
+    glPushMatrix();
+    drawAngryEyebrow(-0.3f, true);
+    drawAngryEyebrow(0.3f, false);
+    glPopMatrix();
+
+    glPopMatrix(); // End Root
+}
+
+// -------------- MAIN MODEL: LUCARIO -----------
+
+//------DRAW LUCARIO HEAD------
+void drawHead() {
+
+    //add main head
+    glPushMatrix();
+    glColor3f(0.4039216f, 0.592159f, 0.666667f);
+    glTranslatef(0.0f, 3.0f, 0.3f);
+    glutSolidSphere(0.6f, 32, 32);
+    glPopMatrix();
+
+    //left cheek
+    glPushMatrix();
+    glColor3f(0.4039216f, 0.592159f, 0.666667f);
+    glTranslatef(-0.25f, 3.0f, 0.3f);
+    glutSolidSphere(0.4f, 32, 32);
+    glPopMatrix();
+
+    //right cheek
+    glPushMatrix();
+    glColor3f(0.4039216f, 0.592159f, 0.666667f);
+    glTranslatef(0.25f, 3.0f, 0.3f);
+    glutSolidSphere(0.4f, 32, 32);
+    glPopMatrix();
+
+    //nose
+    glPushMatrix();
+    glTranslatef(0.0f, 2.8f, 0.7f);
+    glRotatef(0, 1.0f, 0.0f, 0.0f);
+    GLUquadric* quad = gluNewQuadric();
+    glColor3f(0.4039216f, 0.592159f, 0.666667f);
+
+    //truncated cone
+    gluCylinder(quad, 0.3f, 0.1f, 0.6f, 32, 32);
+
+    glPushMatrix();
+    glTranslatef(0.0f, 0.0f, 0.0f);
+    gluDisk(quad, 0.0f, 0.3f, 32, 1); // Base disk
+    glPopMatrix();
+
+    glPushMatrix();
+    glTranslatef(0.0f, 0.0f, 0.6f); // Move to top
+    gluDisk(quad, 0.0f, 0.1f, 32, 1); // Top disk
+    glPopMatrix();
+
+    gluDeleteQuadric(quad);
+    glPopMatrix();
+}
+
+//---------------DRAW LUCARIO MASK---------------
+void drawMask() {
+
+    glPushMatrix();
+
+    glColor3f(0.388235, 0.3921569, 0.4);
+
+    glTranslatef(0.0f, 3.1f, 0.5f);
+    glScalef(0.5f, 0.3f, 0.5f);     
+    glutSolidSphere(0.9f, 32, 32);  
+
+    glPopMatrix();
+
+    //across nose
+
+    glPushMatrix();
+    glTranslatef(0.0f, 2.9f, 0.88f);
+    glScalef(0.35f, 0.5f, 0.5f);
+    glRotatef(-120.0f, 0.0f, 1.0f, 0.0f);
+    glutSolidSphere(0.65f, 4, 32);
+    glPopMatrix();
+
+
+    // stout nose
+    glPushMatrix();
+    glTranslatef(0.0f, 2.8f, 1.3f);
+    glScalef(0.8f, 0.5f, 0.5f);
+    glutSolidSphere(0.20f, 16, 32);
+    glPopMatrix();
+
+    // at the back of its head
+    glPushMatrix();
+    glTranslatef(0.0f, 3.04f, 0.15f);
+    glRotatef(-45.0f, 0.0f, 1.0f, 0.0f);
+    glScalef(0.5f, 0.5f, 0.5f);
+    glutSolidSphere(1.0f, 16, 32);
+    glPopMatrix();
+}
+
+//-------------------------DRAW LUCARIO EYES--------------------
+void drawEyes()
+{
+    const int segments = 40;
+    const float radius = 0.25f;
+    GLfloat circle3D[segments * 3]; // x, y, z for each point
+
+    for (int i = 0; i < segments; ++i) {
+        float theta = 2.0f * 3.1415926f * i / segments;
+        circle3D[i * 3 + 0] = radius * cosf(theta); // x
+        circle3D[i * 3 + 1] = radius * sinf(theta); // y
+        circle3D[i * 3 + 2] = 0.0f;                 // z
+    }
+
+    GLfloat triangle3D[] = {
+       -0.4f, 0.0f, 0.0f,   // Right base point (right angle)
+        0.3f, 0.5f, 0.0f,   // Left base point
+        0.7f, 0.2f, 0.0f    // Top vertex
+    };
+
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glScalef(0.6f, 1.0f, 0.8f);
+
+    glMultMatrixf(shearXMatrix);
+    glTranslatef(0.17f, 3.00f, 0.20f);
+    glScalef(0.5f, 0.5f, 1.0f); // Mirror for right ear
+
+    // THE TRIANGLE
+    glBegin(GL_TRIANGLES);
+    glColor3f(1.0f, 1.0f, 1.0f);
+    glVertex3f(triangle3D[0], triangle3D[1], triangle3D[2]);
+    glVertex3f(triangle3D[3], triangle3D[4], triangle3D[5]);
+    glVertex3f(triangle3D[6], triangle3D[7], triangle3D[8]);
+    glEnd();
+
+    // the white circle
+
+    glBegin(GL_TRIANGLE_FAN);
+
+    // Center of the circle (anchor)
+    glColor3f(0.2f, 0.2f, 0.2f); // or whatever fill color you want
+    glVertex3f(0.0f, 0.3f, 0.05f); // Center point
+
+    // Circle edge vertices
+    for (int i = 0; i <= segments; ++i) {
+        int index = (i % segments) * 3;
+        glVertex3f(circle3D[index + 0],
+            circle3D[index + 1] + 0.3f,
+            circle3D[index + 2] + 0.05f);
+    }
+
+    glEnd();
+
+    glBegin(GL_TRIANGLE_FAN);
+    glColor3f(0.7254901, 0.278431, 0.278431);
+    //glTranslatef(0.17f, 3.00f, 0.40f);
+
+    // Outer vertices, translated individually
+    for (int i = 0; i <= segments; ++i) {
+        int index = (i % segments) * 3;
+        glVertex3f(
+            circle3D[index + 0],
+            circle3D[index + 1] + 0.3f,
+            circle3D[index + 2] + 0.05f
+        );
+    }
+    glEnd();
+
+    GLfloat wideLine[] = {
+        // Triangle 1
+       -0.025f, 0.0f,  0.1f,  // bottom-left
+        0.025f, 0.0f,  0.1f,  // bottom-right
+        0.025f, 0.5f,  0.1f,  // top-right
+
+        // Triangle 2
+       -0.025f, 0.0f,  0.1f,  // bottom-left
+        0.025f, 0.5f,  0.1f,  // top-right
+       -0.025f, 0.5f,  0.1f   // top-left
+    };
+
+    glBegin(GL_TRIANGLES);
+    glColor3f(0.0f, 0.0f, 0.0f);
+
+    // Triangle 1
+    glVertex3f(wideLine[0], wideLine[1], wideLine[2]);
+    glVertex3f(wideLine[3], wideLine[4], wideLine[5]);
+    glVertex3f(wideLine[6], wideLine[7], wideLine[8]);
+
+    // Triangle 2
+    glVertex3f(wideLine[9], wideLine[10], wideLine[11]);
+    glVertex3f(wideLine[12], wideLine[13], wideLine[14]);
+    glVertex3f(wideLine[15], wideLine[16], wideLine[17]);
+
+    // Triangle cover
+    /*glColor3f(0.388235, 0.3921569, 0.4); // grey
+    glVertex3f(0.30f, 0.20f, 0.1f); // Point A - base left
+    glVertex3f(0.55f, 0.18f, 0.1f); // Point B - base right (slightly lower)
+    glVertex3f(0.10f, 0.48f, 0.1f); // Point C - sharp top, slightly tilted
+    */
+    glEnd();
+    glPopMatrix();
+}
+
+/// ------------ CALLING EYES FOR MIRRORING -------
+void drawBothEyes()
+{
+    // LEFT EYE
+    glPushMatrix();
+    glTranslatef(0.30f, 0.60f, 0.81f); // Slightly outward + up + forward
+    glScalef(1.0f, 0.8f, 0.8f); // Mirror eye content on X
+
+    drawEyes(); // Left eye
+    glPopMatrix();
+
+    // RIGHT EYE
+    glPushMatrix();
+    glTranslatef(-0.30f, 0.60f, 0.81f); // Mirror offset
+    glScalef(-1.0f, 0.8f, 0.8f); // Mirror eye content on X
+    drawEyes(); // Right eye
+    glPopMatrix();
+}
+
+// --------- THE EAR APPENDAGE LUCARIO -----------
+void drawEarAppendage() {
+    // Local variables
+    const float xOffsets[4] = { -0.6f,  -0.4f,  0.4f,  0.6f }; //control kedudukan
+    const float HEAD_Y = 2.8f;
+    const float HEAD_Z = -0.10f;
+    const float SCALE_X1 = 0.20f;
+    const float SCALE_Y1 = 0.20f;
+    const float SCALE_Z1 = 0.50f;
+
+    for (int i = 0; i < 4; ++i) {
+        glPushMatrix();
+        // 1) Pindah ke posisi dasar ear
+        glTranslatef(xOffsets[i], HEAD_Y, HEAD_Z);
+
+        // 2) Rotate depan–belakang (paksi X) ikut earRotX[i]
+        glRotatef(earRotX[i], 1.0f, 0.0f, 0.0f);
+
+        // 3) Rotate kiri–kanan (paksi Y) ikut earRotY[i]
+        glRotatef(earRotY[i], 0.0f, 1.0f, 0.0f);
+
+        // 4) Scale jadi ellipsoid
+        glScalef(SCALE_X1, SCALE_Y1, SCALE_Z1);
+
+        // 5) Gambar sphere (ear)
+        glColor3f(0.388235f, 0.3921569f, 0.4f);
+        glutSolidSphere(1.0f, 20, 20);
+        glPopMatrix();
+    }
+}
+//--------------------DRAW LUCARIO EARS------------------
+void drawEars(float scale) {
+    glPushMatrix();
+    glEnable(GL_CLIP_PLANE0);
+    double clipPlane[] = { 0.0, -1.0, 0.0, 0.0 }; // Cuts off bottom half 
+
+    // ----- Main Ear -----
+    glPushMatrix();
+    glClipPlane(GL_CLIP_PLANE0, clipPlane); // Apply clipping
+    glColor3f(0.4039216, 0.592159, 0.666667);
+    glTranslatef(-0.1f, 0.1f, 0.2f);
+    glRotatef(0.0f, 0.0f, 45.0f, 1.0f);    // Tilt ear
+    glScalef(scale * 0.48f, scale * 2.5f, scale * 0.6f);
+    glutSolidCone(1.0, 2.0, 20, 8);
+    glPopMatrix();
+
+    // ----- Inside the ears -----
+    glPushMatrix();
+    glClipPlane(GL_CLIP_PLANE0, clipPlane); // Apply same clipping
+    glColor3f(0.388235, 0.3921569, 0.4);
+    glTranslatef(0.0f, 0.1f, 0.2f);        // Slight forward offset
+    glRotatef(0.0f, 270.0f, 45.0f, 1.0f);    // Match main ear tilt
+    glScalef(scale * 0.4f, scale * 2.5f, scale * 0.4f);
+    glutSolidCone(0.6, 1.5, 10, 6);
+    glPopMatrix();
+
+    // Disable clipping for other objects
+    glDisable(GL_CLIP_PLANE0);
+
+    glPopMatrix();
+}
+
+// ---------- DRAWING BOTH EARS LUCARIO ----------
+void drawBothEars()
+{
+    // Left ear
+    glPushMatrix();
+    glTranslatef(-0.33f, 3.3f, 0.5f);
+    glRotatef(160.0f, 270.0f, 1.0f, 0.0f);
+    drawEars(0.5f);
+    glPopMatrix();
+
+    // Right ear
+    glPushMatrix();
+    glTranslatef(0.33f, 3.3f, 0.5f);
+    glRotatef(160.0f, 270.0f, 1.0f, 0.0f);
+    glScalef(-1.0f, 1.0f, 1.0f); // Mirror for right ear
+    drawEars(0.5f);
+    glPopMatrix();
+}
+// ------------- BODY OF LUCARIO ------------
+
+void drawBody() {
+    // Neck 
+    GLUquadric* q = gluNewQuadric();
+    glPushMatrix();
+    glColor3f(0.4039216f, 0.592159f, 0.666667f);
+    glTranslatef(0.0f, 2.1f, 0.2f);
+    glRotatef(-90.0f, 1.0f, 0.0f, 0.0f);  // align +Z→+Y
+    gluCylinder(q, 0.20f, 0.20f, 0.40f, 20, 1);
+    glPopMatrix();
+    gluDeleteQuadric(q);
+
+    // Spikes
+    const int NUM_SPIKES = 6;
+    const float NECK_TOP_Y = 2.15f;
+    const float NECK_RADIUS = 0.18f;
+    const float CONE_BASE = 0.04f;
+    const float CONE_HEIGHT = 0.15f;
+    for (int i = 0; i < NUM_SPIKES; ++i) {
+        float angleDeg = (360.0f / NUM_SPIKES) * i;
+        glPushMatrix();
+        glTranslatef(0.0f, NECK_TOP_Y, 0.2f);
+        glRotatef(90.0f, 0.0f, 1.0f, 0.0f);
+        glRotatef(angleDeg, 0.0f, 1.0f, 0.0f);
+        glTranslatef(0.0f, 0.0f, NECK_RADIUS);
+        glColor3f(1.0f, 1.0f, 0.878f);
+        glutSolidCone(CONE_BASE, CONE_HEIGHT, 20, 20);
+        glPopMatrix();
+    }
+
+    // Main torso (more elongated) 
+    glPushMatrix();
+    glColor3f(1.0f, 1.0f, 0.878f);
+    glTranslatef(0.0f, 1.9f, 0.1f);
+    glScalef(0.45, 0.2f, 0.3f); // More elongated torso
+    glutSolidSphere(1.0f, 32, 32);
+    glPopMatrix();
+
+    glPushMatrix();
+    glColor3f(1.0f, 1.0f, 0.878f); // Cream/yellow color
+    glTranslatef(0.0f, 1.8f, 0.1f);
+    glScalef(0.25f, 0.5f, 0.3f);
+    glutSolidSphere(1.0f, 20, 20);
+    glPopMatrix();
+
+    glPushMatrix();
+    glColor3f(1.0f, 1.0f, 0.878f);
+    glTranslatef(0.0f, 1.35f, 0.1f);
+    glScalef(0.45, 0.2f, 0.3f); // More elongated torso
+    glutSolidSphere(1.0f, 32, 32);
+    glPopMatrix();
+
+    glPushMatrix();
+    glColor3f(1.0f, 1.0f, 0.878f);
+    glTranslatef(0.0f, 1.35f, 0.1f);
+    glScalef(0.45, 0.2f, 0.3f); // More elongated torso
+    glutSolidSphere(1.0f, 32, 32);
+    glPopMatrix();
+
+    // Waist/hip area (more streamlined)
+    glPushMatrix();
+    glColor3f(0.388235f, 0.3921569f, 0.4f);
+    glTranslatef(0.0f, 1.2f, 0.1f);
+    glScalef(0.6f, 0.25f, 0.4f);
+    glutSolidSphere(1.0f, 32, 32);
+    glPopMatrix();
+
+
+    //lucario legs 
+
+    //right Upper leg (blue)
+    glPushMatrix();
+    glTranslatef(0.4f, 1.0f, 0.1f);
+    glScalef(0.4f, 0.3f, 0.4f);
+    glColor3f(0.4039216f, 0.592159f, 0.666667f);
+    glutSolidSphere(1.0f, 20, 20);
+    glPopMatrix();
+
+    glPushMatrix();
+    glTranslatef(0.4f, 0.95f, 0.1f);
+    glScalef(0.45f, 0.3f, 0.4f);
+    glColor3f(0.4039216f, 0.592159f, 0.666667f);
+    glutSolidSphere(1.0f, 20, 20);
+    glPopMatrix();
+
+    //left Upper leg (blue)
+    glPushMatrix();
+    glTranslatef(-0.4f, 1.0f, 0.1f);
+    glScalef(0.4f, 0.3f, 0.4f);
+    glColor3f(0.4039216f, 0.592159f, 0.666667f);
+    glutSolidSphere(1.0f, 20, 20);
+    glPopMatrix();
+
+    glPushMatrix();
+    glTranslatef(-0.4f, 0.95f, 0.1f);
+    glScalef(0.45f, 0.3f, 0.4f);
+    glColor3f(0.4039216f, 0.592159f, 0.666667f);
+    glutSolidSphere(1.0f, 20, 20);
+    glPopMatrix();
+
+
+    //right lower leg
+    GLUquadric* q3 = gluNewQuadric();
+    glPushMatrix();
+    glColor3f(0.388235f, 0.3921569f, 0.4f);
+    glTranslatef(0.4f, 0.6f, 0.2f);
+    glRotatef(-90.0f, 1.0f, 0.0f, 0.0f);  // align +Z→+Y
+    gluCylinder(q3, 0.15f, 0.15f, 0.40f, 20, 1);
+    glPopMatrix();
+    gluDeleteQuadric(q3);
+
+    //foot
+    glPushMatrix();
+    glTranslatef(0.4f, 0.55f, 0.1f);
+    glRotatef(42.0f, 1.0f, 0.0f, 0.0f);  // align +Z→+Y
+    glScalef(0.15f, 0.4f, 0.15f);
+    glColor3f(0.388235f, 0.3921569f, 0.4f);
+    glutSolidSphere(1.0f, 20, 20);
+    glPopMatrix();
+
+    glPushMatrix();
+    glTranslatef(0.4f, 0.1f, 0.0f);
+    glRotatef(0.0f, 1.0f, 0.0f, 0.0f);  // align +Z→+Y
+    glScalef(0.15f, 0.5f, 0.15f);
+    glColor3f(0.388235f, 0.3921569f, 0.4f);
+    glutSolidSphere(1.0f, 20, 20);
+    glPopMatrix();
+
+    glPushMatrix();
+    glTranslatef(0.4f, -0.2f, 0.2f);
+    glRotatef(-45.0f, 1.0f, 0.0f, 0.0f);  // align +Z→+Y
+    glScalef(0.2f, 0.4f, 0.15f);
+    glColor3f(0.388235f, 0.3921569f, 0.4f);
+    glutSolidSphere(1.0f, 20, 20);
+    glPopMatrix();
+
+
+    // left lower leg
+    GLUquadric* q2 = gluNewQuadric();
+    glPushMatrix();
+    glColor3f(0.388235f, 0.3921569f, 0.4f);
+    glTranslatef(-0.4f, 0.5f, 0.2f);
+    glRotatef(-90.0f, 1.0f, 0.0f, 0.0f);  // align +Z→+Y
+    gluCylinder(q2, 0.15f, 0.15f, 0.40f, 20, 1);
+    glPopMatrix();
+    gluDeleteQuadric(q2);
+
+    //left lower leg
+    glPushMatrix();
+    glTranslatef(-0.4f, 0.6f, 0.2f);
+    glRotatef(42.0f, 1.0f, 0.0f, 0.0f);  // align +Z→+Y
+    glScalef(0.15f, 0.4f, 0.15f);
+    glColor3f(0.388235f, 0.3921569f, 0.4f);
+    glutSolidSphere(1.0f, 20, 20);
+    glPopMatrix();
+
+    glPushMatrix();
+    glTranslatef(-0.4f, 0.2f, 0.0f);
+    glRotatef(0.0f, 1.0f, 0.0f, 0.0f);  // align +Z→+Y
+    glScalef(0.15f, 0.5f, 0.15f);
+    glColor3f(0.388235f, 0.3921569f, 0.4f);
+    glutSolidSphere(1.0f, 20, 20);
+    glPopMatrix();
+
+    glPushMatrix();
+    glTranslatef(-0.4f, -0.2f, 0.2f);
+    glRotatef(-45.0f, 1.0f, 0.0f, 0.0f);  // align +Z→+Y
+    glScalef(0.2f, 0.4f, 0.15f);
+    glColor3f(0.388235f, 0.3921569f, 0.4f);
+    glutSolidSphere(1.0f, 20, 20);
+    glPopMatrix();
+
+    //paws
+    //right paw
+    for (int i = 0; i < 3; ++i) {
+        glPushMatrix();
+        glTranslatef(0.2f + i * 0.2f, -0.3f, 0.5f);  // Move each circle on x-axis
+        glRotatef(-45.0f, 1.0f, 0.0f, 0.0f);         // Rotate same way
+        glScalef(0.2f, 0.2f, 0.15f);                 // Flatten into circle shape
+        glColor3f(0.388235f, 0.3921569f, 0.4f);      // Gray color
+        glutSolidSphere(1.0f, 10, 20);               // Draw sphere
+        glPopMatrix();
+    }
+
+    //left paw
+    for (int i = 0; i < 3; ++i) {
+        glPushMatrix();
+        glTranslatef(-0.6f + i * 0.2f, -0.3f, 0.5f);  // Move each circle on x-axis
+        glRotatef(-45.0f, 1.0f, 0.0f, 0.0f);         // Rotate same way
+        glScalef(0.2f, 0.2f, 0.15f);                 // Flatten into circle shape
+        glColor3f(0.388235f, 0.3921569f, 0.4f);      // Gray color
+        glutSolidSphere(1.0f, 10, 20);               // Draw sphere
+        glPopMatrix();
+    }
+    // ================= RIGHT ARM ====================
+    glPushMatrix();
+    glTranslatef(0.5f, 1.9f, 0.2f); // Shoulder position
+    glRotatef(rightShoulderRot, 1.0f, 0.0f, 0.0f); // Shoulder rotation, movement 
+
+    // Shoulder (sphere)
+    glPushMatrix();
+    glScalef(0.2f, 0.3f, 0.3f);
+    glColor3f(0.388f, 0.392f, 0.4f); // Dark grey
+    glutSolidSphere(1.0f, 20, 20);
+    glPopMatrix();
+
+    // Upper Arm (blue)
+    glTranslatef(0.3f, -0.25f, 0.0f); // Offset from shoulder
+    glPushMatrix();
+    glScalef(0.15f, 0.5f, 0.15f);
+    glColor3f(0.403f, 0.592f, 0.666f);
+    glutSolidSphere(1.0f, 20, 20);
+    glPopMatrix();
+
+    // Elbow bend
+    glTranslatef(0.0f, -0.4f, 0.0f);
+    glRotatef(rightElbowRot, 1.0f, 0.0f, 0.0f); // Elbow rotation
+
+    // Forearm (dark grey)
+    glPushMatrix();
+    glScalef(0.12f, 0.5f, 0.12f);
+    glColor3f(0.388f, 0.392f, 0.4f);
+    glutSolidSphere(1.0f, 20, 20);
+    glPopMatrix();
+
+    // Hand
+    glTranslatef(0.0f, -0.5f, 0.0f);
+    glColor3f(0.388f, 0.392f, 0.4f);
+    glutSolidSphere(0.15f, 16, 16);
+
+    // Spike
+    glTranslatef(0.0f, 0.1f, 0.1f);
+    glColor3f(1.0f, 1.0f, 1.0f);
+    glutSolidCone(0.1f, 0.2f, 10, 10);
+    glPopMatrix();
+
+
+    // ================= LEFT ARM ====================
+    glPushMatrix();
+    glTranslatef(-0.5f, 1.9f, 0.2f); // Shoulder position
+    glRotatef(leftShoulderRot, 1.0f, 0.0f, 0.0f); // Shoulder rotation
+
+    // Shoulder (sphere)
+    glPushMatrix();
+    glScalef(0.2f, 0.3f, 0.3f);
+    glColor3f(0.388f, 0.392f, 0.4f); // Dark grey
+    glutSolidSphere(1.0f, 20, 20);
+    glPopMatrix();
+
+    // Upper Arm (blue)
+    glTranslatef(-0.3f, -0.25f, 0.0f); // Offset from shoulder
+    glPushMatrix();
+    glScalef(0.15f, 0.5f, 0.15f);
+    glColor3f(0.403f, 0.592f, 0.666f);
+    glutSolidSphere(1.0f, 20, 20);
+    glPopMatrix();
+
+    // Elbow bend
+    glTranslatef(0.0f, -0.4f, 0.0f);
+    glRotatef(leftElbowRot, 1.0f, 0.0f, 0.0f); // Elbow rotation
+
+    // Forearm (dark grey)
+    glPushMatrix();
+    glScalef(0.12f, 0.5f, 0.12f);
+    glColor3f(0.388f, 0.392f, 0.4f);
+    glutSolidSphere(1.0f, 20, 20);
+    glPopMatrix();
+
+    // Hand
+    glTranslatef(0.0f, -0.5f, 0.0f);
+    glColor3f(0.388f, 0.392f, 0.4f);
+    glutSolidSphere(0.15f, 16, 16);
+
+    // Spike
+    glTranslatef(0.0f, 0.1f, 0.1f);
+    glColor3f(1.0f, 1.0f, 1.0f);
+    glutSolidCone(0.1f, 0.2f, 10, 10);
+    glPopMatrix();
+
+    // tail 
+    glPushMatrix();
+    glTranslatef(0.0f, 1.0f, -1.0f);
+    glScalef(0.15f, 0.15f, 1.5f);
+    glRotatef(70.0f, 1.0f, 0.0f, 0.0f);
+    glColor3f(0.4039216f, 0.592159f, 0.666667f);
+    glutSolidSphere(1.0f, 20, 20);
+    glPopMatrix();
+
+}
+
+
+// ---------- CALLING RELATED FUNCTIONS FOR LUCARIO  ----------
+void drawLucario()
+{
+    glPushMatrix(); // Root node
+    glRotatef(angleY, 0.0f, 1.0f, 0.0f);
+
+    drawBody();
+    drawHead();
+    drawBothEyes();
+    drawMask();
+    setMetallicMaterial(0.388235f, 0.3921569f, 0.4f); // Special metallic version
+    drawEarAppendage();
+    drawBothEars();
+
+    glPopMatrix(); // End root
+}
+
+void computePos(float deltaMove) {//move up and down arrow keys
+    cameraX += deltaMove * lx * 0.1f;//it will move forward , 0.1 to avoid overly fast motion
+    cameraZ += deltaMove * lz * 0.1f;
+}
+
+
+void releaseKey(int key, int x, int y) {
+    switch (key) {
+    case GLUT_KEY_LEFT:
+    case GLUT_KEY_RIGHT:
+        deltaAngle = 0.0f;
+        break;
+    case GLUT_KEY_UP:
+    case GLUT_KEY_DOWN:
+        deltaMove = 0.0f;
+        break;
+    }
+}
+
+// ---------- MOVEMENT FOR KEYBOARD KEYS  ----------
+
+void handleSpecialKeys(int key, int x, int y) {
+    switch (key) {
+    case GLUT_KEY_LEFT:  deltaAngle = -0.01f; break;// for camera movement ,left
+    case GLUT_KEY_RIGHT: deltaAngle = 0.01f; break;//right
+    case GLUT_KEY_UP:    deltaMove = 0.5f; break;//forward
+    case GLUT_KEY_DOWN:  deltaMove = -0.5f; break;//backward
+    }
+    glutPostRedisplay();
+}
+
+// ---------- RESHAPE ----------
+void reshape(int w, int h) {
+    glViewport(0, 0, w, h);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluPerspective(45.0, (float)w / h, 1.0, 100.0);
+    glMatrixMode(GL_MODELVIEW);
+
+}
+//text letter 
+void renderBitmap(float x, float y, void* font, const char* string) {
+    glRasterPos2f(x, y);
+    while (*string) {
+        glutBitmapCharacter(font, *string);
+        ++string;
+    }
+}
+
+void displayTexts() {//to display text
+    char buf[100] = { 0 };//buffer for formatted strinfs 
+
+    glColor3f(0.0f, 1, 1);
+    sprintf(buf, "Guess the Pokemon?");//the title 
+    renderBitmap(10, 500, GLUT_BITMAP_TIMES_ROMAN_24, buf);
+    sprintf(buf, "================");
+    renderBitmap(10, 480, GLUT_BITMAP_TIMES_ROMAN_24, buf);
+
+    glColor3f(1, 1, 0);
+    sprintf(buf, "Lucario");
+    renderBitmap(10, 460, GLUT_BITMAP_HELVETICA_18, buf);
+    sprintf(buf, "Voltorb");
+    renderBitmap(10, 440, GLUT_BITMAP_HELVETICA_18, buf);
+
+    glColor3f(1, 1, 1);
+    sprintf(buf, "INSTRUCTIONS");
+    renderBitmap(10, 400, GLUT_BITMAP_TIMES_ROMAN_24, buf);
+    sprintf(buf, "==============");
+    renderBitmap(10, 380, GLUT_BITMAP_TIMES_ROMAN_24, buf);
+    //controls instruction
+    glColor3f(0, 1, 1);
+    sprintf(buf, "Press [C] to play lucario sound");
+    renderBitmap(10, 360, GLUT_BITMAP_HELVETICA_18, buf);
+    sprintf(buf, "Press [B] to play background song");
+    renderBitmap(10, 340, GLUT_BITMAP_HELVETICA_18, buf);
+    sprintf(buf, "Press [V] to play voltorb sound");
+    renderBitmap(10, 320, GLUT_BITMAP_HELVETICA_18, buf);
+    sprintf(buf, "Press [X] to stop playing audio.");
+    renderBitmap(10, 300, GLUT_BITMAP_HELVETICA_18, buf);
+    sprintf(buf, "Right click on your mouse to play/stop audio");
+    renderBitmap(10, 280, GLUT_BITMAP_HELVETICA_18, buf);
+    sprintf(buf, "Press A/W/S/D to move Voltorb");
+    renderBitmap(10, 260, GLUT_BITMAP_HELVETICA_18, buf);
+    sprintf(buf, "Press UP DOWN RIGHT LEFT keys to move around");
+    renderBitmap(10, 240, GLUT_BITMAP_HELVETICA_18, buf);
+}
+
+void drawOverlayText() {
+
+    //set projecton to orth
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    gluOrtho2D(0, 800, 0, 600);  // Adjust to match your window size
+
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+    // Temporarily disable depth testing to ensure text appears on top
+    glDisable(GL_DEPTH_TEST);   // Prevent 3D from hiding text
+    //cal displaytext 
+    displayTexts();
+
+    glEnable(GL_DEPTH_TEST);
+    glPopMatrix();
+
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+}
+
+
+// ---------- KEYBOARD ----------
+void keyboard(unsigned char key, int, int) {
+    switch (key) {
+    case 27: exit(0); break; // ESC
+
+        // movement for Voltorb
+    case 'w': moveZ -= 0.1f; break;
+    case 's': moveZ += 0.1f; break;
+    case 'a': moveX -= 0.1f; break;
+    case 'd': moveX += 0.1f; break;
+    //i used the playsound function, to call and include <windows.h>
+    //lucario sound
+    //copy the file path into this func, , i used switch case that mapped different sound effect 
+    case 'c':
+    case 'C':
+        PlaySoundW(L"C:\\Users\\hp\\Downloads\\Lucario Cry.wav", NULL, SND_ASYNC);//use snd_async so it plays without blocking the animation
+        //cout << "Play the audio\n" << std::flush;
+        break;
+
+    //background sound
+    case 'b':
+    case 'B':
+        PlaySoundW(L"C:\\Users\\hp\\Downloads\\backgroundsong.wav", NULL, SND_ASYNC);
+        //cout << "Play the audio\n" << std::flush;
+        break;
+
+    case 'v':
+    case 'V':
+        PlaySoundW(L"C:\\Users\\hp\\Downloads\\Pokemon Cries -  100 Voltorb.wav", NULL, SND_ASYNC);
+        //cout << "Play the audio\n" << std::flush;
+        break;
+
+    case 'x':
+    case 'X':
+        PlaySoundW(NULL, 0, 0);
+        //cout << "Stop the audio\n" << std::flush;
+        break;
+
+        case 'f': rightShoulderRot += 5.0f; break;//the movement for lucario hand 
+        case 'g': rightShoulderRot -= 5.0f; break;
+        case 'h': rightElbowRot += 5.0f; break;
+        case 'j': rightElbowRot -= 5.0f; break;
+
+        case 'u': leftShoulderRot += 5.0f; break;
+        case 'i': leftShoulderRot -= 5.0f; break;
+        case 'o': leftElbowRot += 5.0f; break;
+        case 'p': leftElbowRot -= 5.0f; break;
+       
+    }
+    glutPostRedisplay();
+}
+// ---------- BOUNCE ANIMATION ----------
+// ----------TO be used in project ---------
+void idle() {
+    bounceTime += 0.05f;
+    bounceHeight = 0.1f * sin(bounceTime);  // Bounces up/down
+    glutPostRedisplay();
+}
+
+// ---------- FEATURE OF LIGHTING ----------
+void init() {
+
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_LIGHTING); // Enable lighting system
+    glEnable(GL_LIGHT0);   // Light 0 (main light)
+    glEnable(GL_NORMALIZE); // Auto-normalize normals for lighting
+
+    // Set light color and position
+    GLfloat ambientLight[] = { 0.2f, 0.2f, 0.2f, 1.0f };
+    GLfloat diffuseLight[] = { 0.8f, 0.8f, 0.8f, 1.0f };
+    GLfloat lightPosition[] = { 10.0f, 10.0f, 10.0f, 1.0f };
+
+    glLightfv(GL_LIGHT0, GL_AMBIENT, ambientLight);
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, diffuseLight);
+    glLightfv(GL_LIGHT0, GL_POSITION, lightPosition);
+
+    glEnable(GL_COLOR_MATERIAL); // So that glColor affects material
+    glColorMaterial(GL_FRONT, GL_AMBIENT_AND_DIFFUSE);
+
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glMatrixMode(GL_PROJECTION);
+    gluPerspective(45.0, 1.35, 1.0, 100.0);
+    glMatrixMode(GL_MODELVIEW);
+}
+// ---------- CALLING FUNCTIONS IN DISPLAY ---------- 
+void display(){
+
+    // Move camera forward/back if needed
+    if (deltaMove != 0)
+        computePos(deltaMove);
+    // Update camera position
+    if (deltaMove != 0.0f) {
+        cameraX += deltaMove * sin(cameraAngle);
+        cameraZ -= deltaMove * cos(cameraAngle);
+    }
+
+    // Update camera direction (left/right turn)
+    if (deltaAngle != 0.0f) {
+        cameraAngle += deltaAngle;
+        lx = sin(cameraAngle);
+        lz = -cos(cameraAngle);
+    }
+   
+
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glLoadIdentity();
+
+    sky();
+
+    gluLookAt(cameraX, cameraY, cameraZ,//camera position
+        cameraX + lx, cameraY, cameraZ + lz,//look at point
+        0.0f, 1.0f, 0.0f);//up vector, 
+
+    //Up
+    starTime += 0.03f;
+
+    drawConstellation(starTime);
+
+    ground();
+    setMatteMaterial(0.0f, 0.8f, 0.0f);
+    grass();
+    fence();
+
+    glRotatef(angleX, 1.0f, 0.0f, 0.0f);
+    glRotatef(angleY, 0.0f, 1.0f, 0.0f);
+
+    glTranslatef(1.0f, 1.0f, 1.0f);
+
+    if (displayOpt == 0 || displayOpt == 1) {
+        drawLucario();
+    }
+    if (displayOpt == 0 || displayOpt == 2) {
+        drawVoltorb();
+    }
+
+    drawOverlayText();//display text
+    glutSwapBuffers();
+}
+
+
+
+// ---------- FEATURE OF MOUSE/MENU ----------
+
+//Menu callback function
+void menu(int option) {
+    displayOpt = option;
+    glutPostRedisplay();
+}
+
+
+//Setup menu
+void createMenu() {
+    glutCreateMenu(menu);
+    glutAddMenuEntry("Display Both", 0);
+    glutAddMenuEntry("Lucario Only", 1);
+    glutAddMenuEntry("Voltorb Only", 2);
+    glutAttachMenu(GLUT_RIGHT_BUTTON);
+}
+
+
+int main(int argc, char** argv) {
+    glutInit(&argc, argv);
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
+    glutInitWindowSize(850, 650);
+    glutCreateWindow("Lucario and Voltorb!");
+    createMenu();
+    init();
+    glutDisplayFunc(display);
+    glutIdleFunc(display);  // So it updates continuously
+    glutReshapeFunc(reshape);
+    glutKeyboardFunc(keyboard);
+    glutSpecialFunc(handleSpecialKeys);
+    glutSpecialUpFunc(releaseKey);
+
+    initConstellation();
+
+    glutMainLoop();
+
+    return 0;
+}
