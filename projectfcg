@@ -1036,20 +1036,23 @@ void keyboard(unsigned char key, int, int) {
     //copy the file path into this func, , i used switch case that mapped different sound effect 
     case 'c':
     case 'C':
-        PlaySoundW(L"C:\\Users\\hp\\Downloads\\Lucario Cry.wav", NULL, SND_ASYNC);//use snd_async so it plays without blocking the animation
+        PlaySoundW(L"C:\\misc\\lucario.wav", NULL, SND_ASYNC);//use snd_async so it plays without blocking the animation
+        // add your own path for lucario.wav
         //cout << "Play the audio\n" << std::flush;
         break;
 
     //background sound
     case 'b':
     case 'B':
-        PlaySoundW(L"C:\\Users\\hp\\Downloads\\backgroundsong.wav", NULL, SND_ASYNC);
+        PlaySoundW(L"C:\\misc\\backgroundsong.wav", NULL, SND_ASYNC);
+        // add your own path for backgroundsong.wav
         //cout << "Play the audio\n" << std::flush;
         break;
 
     case 'v':
     case 'V':
-        PlaySoundW(L"C:\\Users\\hp\\Downloads\\Pokemon Cries -  100 Voltorb.wav", NULL, SND_ASYNC);
+        PlaySoundW(L"C:\\misc\\voltorb.wav", NULL, SND_ASYNC
+        // add your own path for voltorb.wav
         //cout << "Play the audio\n" << std::flush;
         break;
 
